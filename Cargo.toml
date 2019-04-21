@@ -26,6 +26,7 @@ walkdir = "1.0"
 [features]
 deflate = ["libflate"]
 default = ["bzip2", "deflate", "time"]
+plugins = []
 
 [[bench]]
 name = "read_entry"

@@ -15,15 +15,15 @@ fn main() {
     std::process::exit(real_main());
 }
 
-const METHOD_STORED : Option<zip::CompressionMethod> = Some(zip::CompressionMethod::Stored);
+const METHOD_STORED : Option<zip::CompressionMethod> = Some(zip::compression::METHOD_STORED);
 
 #[cfg(feature = "deflate")]
-const METHOD_DEFLATED : Option<zip::CompressionMethod> = Some(zip::CompressionMethod::Deflated);
+const METHOD_DEFLATED : Option<zip::CompressionMethod> = Some(zip::compression::METHOD_DEFLATE);
 #[cfg(not(feature = "deflate"))]
 const METHOD_DEFLATED : Option<zip::CompressionMethod> = None;
 
 #[cfg(feature = "bzip2")]
-const METHOD_BZIP2 : Option<zip::CompressionMethod> = Some(zip::CompressionMethod::Bzip2);
+const METHOD_BZIP2 : Option<zip::CompressionMethod> = Some(zip::compression::METHOD_BZIP2);
 #[cfg(not(feature = "bzip2"))]
 const METHOD_BZIP2 : Option<zip::CompressionMethod> = None;
 

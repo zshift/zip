@@ -12,7 +12,7 @@ fn real_main() -> i32 {
     let mut buf = [0u8; 16];
 
     loop {
-        match zip::read::read_zipfile_from_stream(&mut stdin_handle) {
+        match zip::read::read_zipfile_from_stream(&mut stdin_handle, #[cfg(feature="plugins")] None) {
             Ok(Some(mut file)) => {
                 println!("{}: {} bytes ({} bytes packed)", file.name(), file.size(), file.compressed_size());
                 match file.read(&mut buf) {

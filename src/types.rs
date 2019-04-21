@@ -257,8 +257,7 @@ impl ZipFileData {
 
     pub fn version_needed(&self) -> u16 {
         match self.compression_method {
-            #[cfg(feature = "bzip2")]
-            ::compression::CompressionMethod::Bzip2 => 46,
+            ::compression::METHOD_BZIP2 => 46,
             _ => 20,
         }
     }
@@ -283,7 +282,7 @@ mod test {
             system: System::Dos,
             version_made_by: 0,
             encrypted: false,
-            compression_method: ::compression::CompressionMethod::Stored,
+            compression_method: ::compression::METHOD_STORED,
             last_modified_time: DateTime::default(),
             crc32: 0,
             compressed_size: 0,

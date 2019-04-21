@@ -1,6 +1,6 @@
 //! Structs for creating a new zip archive
 
-use compression::CompressionMethod;
+use compression::{self, CompressionMethod};
 use types::{ZipFileData, System, DEFAULT_VERSION, DateTime};
 use spec;
 use crc32fast::Hasher;
@@ -43,7 +43,7 @@ enum GenericZipWriter<W: Write + io::Seek>
 ///     let mut w = std::io::Cursor::new(buf);
 ///     let mut zip = zip::ZipWriter::new(w);
 ///
-///     let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+///     let options = zip::write::FileOptions::default().compression_method(zip::compression::METHOD_STORED);
 ///     zip.start_file("hello_world.txt", options)?;
 ///     zip.write(b"Hello, World!")?;
 ///
@@ -83,8 +83,8 @@ impl FileOptions {
     /// Construct a new FileOptions object
     pub fn default() -> FileOptions {
         FileOptions {
-            #[cfg(feature = "deflate")]      compression_method: CompressionMethod::Deflated,
-            #[cfg(not(feature = "deflate"))] compression_method: CompressionMethod::Stored,
+            #[cfg(feature = "deflate")]      compression_method: compression::METHOD_DEFLATE,
+            #[cfg(not(feature = "deflate"))] compression_method: compression::METHOD_STORED,
             #[cfg(feature = "time")]      last_modified_time: DateTime::from_time(time::now()).unwrap_or(DateTime::default()),
             #[cfg(not(feature = "time"))] last_modified_time: DateTime::default(),
             permissions: None,
@@ -224,7 +224,7 @@ impl<W: Write+io::Seek> ZipWriter<W>
 
     fn finish_file(&mut self) -> ZipResult<()>
     {
-        self.inner.switch_to(CompressionMethod::Stored)?;
+        self.inner.switch_to(compression::METHOD_STORED)?;
         let writer = self.inner.get_plain();
 
         let file = match self.files.last_mut()
@@ -276,7 +276,7 @@ impl<W: Write+io::Seek> ZipWriter<W>
             options.permissions = Some(0o755);
         }
         *options.permissions.as_mut().unwrap() |= 0o40000;
-        options.compression_method = CompressionMethod::Stored;
+        options.compression_method = compression::METHOD_STORED;
 
         let name_as_string = name.into();
         // Append a slash to the filename if it does not end with it.
@@ -376,12 +376,12 @@ impl<W: Write+io::Seek> GenericZipWriter<W>
 
         *self = match compression
         {
-            CompressionMethod::Stored => GenericZipWriter::Storer(bare),
+            compression::METHOD_STORED => GenericZipWriter::Storer(bare),
             #[cfg(feature = "deflate")]
-            CompressionMethod::Deflated => GenericZipWriter::Deflater(libflate::deflate::Encoder::new(bare)),
+            compression::METHOD_DEFLATE => GenericZipWriter::Deflater(libflate::deflate::Encoder::new(bare)),
             #[cfg(feature = "bzip2")]
-            CompressionMethod::Bzip2 => GenericZipWriter::Bzip2(BzEncoder::new(bare, bzip2::Compression::Default)),
-            CompressionMethod::Unsupported(..) => return Err(ZipError::UnsupportedArchive("Unsupported compression")),
+            compression::METHOD_BZIP2 => GenericZipWriter::Bzip2(BzEncoder::new(bare, bzip2::Compression::Default)),
+            _ => return Err(ZipError::UnsupportedArchive("Unsupported compression")),
         };
 
         Ok(())
@@ -418,11 +418,11 @@ impl<W: Write+io::Seek> GenericZipWriter<W>
 
     fn current_compression(&self) -> Option<CompressionMethod> {
         match *self {
-            GenericZipWriter::Storer(..) => Some(CompressionMethod::Stored),
+            GenericZipWriter::Storer(..) => Some(compression::METHOD_STORED),
             #[cfg(feature = "deflate")]
-            GenericZipWriter::Deflater(..) => Some(CompressionMethod::Deflated),
+            GenericZipWriter::Deflater(..) => Some(compression::METHOD_DEFLATE),
             #[cfg(feature = "bzip2")]
-            GenericZipWriter::Bzip2(..) => Some(CompressionMethod::Bzip2),
+            GenericZipWriter::Bzip2(..) => Some(compression::METHOD_BZIP2),
             GenericZipWriter::Closed => None,
         }
     }
@@ -557,7 +557,6 @@ mod test {
     use std::io::Write;
     use types::DateTime;
     use super::{FileOptions, ZipWriter};
-    use compression::CompressionMethod;
 
     #[test]
     fn write_empty_zip() {
@@ -588,7 +587,7 @@ mod test {
     fn write_mimetype_zip() {
         let mut writer = ZipWriter::new(io::Cursor::new(Vec::new()));
         let options = FileOptions {
-            compression_method: CompressionMethod::Stored,
+            compression_method: ::compression::METHOD_STORED,
             last_modified_time: DateTime::default(),
             permissions: Some(33188),
         };

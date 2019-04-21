@@ -23,7 +23,7 @@ fn write_to_zip_file(file: &mut Cursor<Vec<u8>>) -> zip::result::ZipResult<()> {
     zip.add_directory("test/", FileOptions::default())?;
 
     let options = FileOptions::default()
-        .compression_method(zip::CompressionMethod::Stored)
+        .compression_method(zip::compression::METHOD_STORED)
         .unix_permissions(0o755);
     zip.start_file("test/☃.txt", options)?;
     zip.write_all(b"Hello, World!\n")?;
