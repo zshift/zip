@@ -22,7 +22,7 @@ use flate2::write::DeflateEncoder;
 #[cfg(feature = "bzip2")]
 use bzip2::write::BzEncoder;
 
-enum GenericZipWriter<W: Write + io::Seek> {
+enum GenericZipWriter<'a, W: Write + io::Seek> {
     Closed,
     Storer(W),
     #[cfg(any(
@@ -33,6 +33,7 @@ enum GenericZipWriter<W: Write + io::Seek> {
     Deflater(DeflateEncoder<W>),
     #[cfg(feature = "bzip2")]
     Bzip2(BzEncoder<W>),
+    Zstd(zstd::Encoder<'a, W>)
 }
 
 /// ZIP archive generator
@@ -63,8 +64,8 @@ enum GenericZipWriter<W: Write + io::Seek> {
 /// # }
 /// # doit().unwrap();
 /// ```
-pub struct ZipWriter<W: Write + io::Seek> {
-    inner: GenericZipWriter<W>,
+pub struct ZipWriter<'a, W: Write + io::Seek> {
+    inner: GenericZipWriter<'a, W>,
     files: Vec<ZipFileData>,
     stats: ZipWriterStats,
     writing_to_file: bool,
@@ -166,7 +167,7 @@ impl Default for FileOptions {
     }
 }
 
-impl<W: Write + io::Seek> Write for ZipWriter<W> {
+impl<'a, W: Write + io::Seek> Write for ZipWriter<'a, W> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if !self.writing_to_file {
             return Err(io::Error::new(
@@ -220,9 +221,9 @@ impl ZipWriterStats {
     }
 }
 
-impl<A: Read + Write + io::Seek> ZipWriter<A> {
+impl<'a, A: Read + Write + io::Seek> ZipWriter<'a, A> {
     /// Initializes the archive from an existing ZIP archive, making it ready for append.
-    pub fn new_append(mut readwriter: A) -> ZipResult<ZipWriter<A>> {
+    pub fn new_append(mut readwriter: A) -> ZipResult<ZipWriter<'a, A>> {
         let (footer, cde_start_pos) = spec::CentralDirectoryEnd::find_and_parse(&mut readwriter)?;
 
         if footer.disk_number != footer.disk_with_central_directory {
@@ -259,11 +260,11 @@ impl<A: Read + Write + io::Seek> ZipWriter<A> {
     }
 }
 
-impl<W: Write + io::Seek> ZipWriter<W> {
+impl<'a, W: Write + io::Seek> ZipWriter<'a, W> {
     /// Initializes the archive.
     ///
     /// Before writing to this object, the [`ZipWriter::start_file`] function should be called.
-    pub fn new(inner: W) -> ZipWriter<W> {
+    pub fn new(inner: W) -> ZipWriter<'a, W> {
         ZipWriter {
             inner: GenericZipWriter::Storer(inner),
             files: Vec::new(),
@@ -770,7 +771,7 @@ impl<W: Write + io::Seek> ZipWriter<W> {
     }
 }
 
-impl<W: Write + io::Seek> Drop for ZipWriter<W> {
+impl<'a, W: Write + io::Seek> Drop for ZipWriter<'a, W> {
     fn drop(&mut self) {
         if !self.inner.is_closed() {
             if let Err(e) = self.finalize() {
@@ -780,7 +781,7 @@ impl<W: Write + io::Seek> Drop for ZipWriter<W> {
     }
 }
 
-impl<W: Write + io::Seek> GenericZipWriter<W> {
+impl<'a, W: Write + io::Seek> GenericZipWriter<'a, W> {
     fn switch_to(&mut self, compression: CompressionMethod) -> ZipResult<()> {
         match self.current_compression() {
             Some(method) if method == compression => return Ok(()),
@@ -811,6 +812,7 @@ impl<W: Write + io::Seek> GenericZipWriter<W> {
                 )
                 .into())
             }
+            GenericZipWriter::Zstd(w) => w.finish()?,
         };
 
         *self = {
@@ -830,6 +832,9 @@ impl<W: Write + io::Seek> GenericZipWriter<W> {
                 CompressionMethod::Bzip2 => {
                     GenericZipWriter::Bzip2(BzEncoder::new(bare, bzip2::Compression::default()))
                 }
+                CompressionMethod::Zstd => {
+                    GenericZipWriter::Zstd(zstd::Encoder::new(bare, zstd::DEFAULT_COMPRESSION_LEVEL)?)
+                },
                 CompressionMethod::Unsupported(..) => {
                     return Err(ZipError::UnsupportedArchive("Unsupported compression"))
                 }
@@ -850,6 +855,7 @@ impl<W: Write + io::Seek> GenericZipWriter<W> {
             GenericZipWriter::Deflater(ref mut w) => Some(w as &mut dyn Write),
             #[cfg(feature = "bzip2")]
             GenericZipWriter::Bzip2(ref mut w) => Some(w as &mut dyn Write),
+            GenericZipWriter::Zstd(ref mut w) => Some(w as &mut dyn Write),
             GenericZipWriter::Closed => None,
         }
     }
@@ -880,6 +886,7 @@ impl<W: Write + io::Seek> GenericZipWriter<W> {
             #[cfg(feature = "bzip2")]
             GenericZipWriter::Bzip2(..) => Some(CompressionMethod::Bzip2),
             GenericZipWriter::Closed => None,
+            GenericZipWriter::Zstd(..) => Some(CompressionMethod::Zstd),
         }
     }
 

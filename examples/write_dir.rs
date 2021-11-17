@@ -32,6 +32,11 @@ const METHOD_BZIP2: Option<zip::CompressionMethod> = Some(zip::CompressionMethod
 #[cfg(not(feature = "bzip2"))]
 const METHOD_BZIP2: Option<zip::CompressionMethod> = None;
 
+#[cfg(feature = "zstd")]
+const METHOD_ZSTD: Option<zip::CompressionMethod> = Some(zip::CompressionMethod::ZSTD);
+#[cfg(not(feature = "zstd"))]
+const METHOD_ZSTD: Option<zip::CompressionMethod> = None;
+
 fn real_main() -> i32 {
     let args: Vec<_> = std::env::args().collect();
     if args.len() < 3 {

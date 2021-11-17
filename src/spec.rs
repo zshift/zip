@@ -4,6 +4,7 @@ use std::io;
 use std::io::prelude::*;
 
 pub const LOCAL_FILE_HEADER_SIGNATURE: u32 = 0x04034b50;
+pub const LOCAL_ENC_FILE_HEADER_SIGNATURE: u32 = 0x14034b50;
 pub const CENTRAL_DIRECTORY_HEADER_SIGNATURE: u32 = 0x02014b50;
 const CENTRAL_DIRECTORY_END_SIGNATURE: u32 = 0x06054b50;
 pub const ZIP64_CENTRAL_DIRECTORY_END_SIGNATURE: u32 = 0x06064b50;
@@ -17,6 +18,34 @@ pub struct CentralDirectoryEnd {
     pub central_directory_size: u32,
     pub central_directory_offset: u32,
     pub zip_file_comment: Vec<u8>,
+}
+
+pub fn find_sig_loc<T: Read + io::Seek>(
+    reader: &mut T,
+    signature: u32,
+    end_loc: i64,
+    min_block_size: i64,
+    max_var_data: i64,
+) -> Option<u64> {
+    let pos = end_loc - min_block_size;
+    if pos < 0 {
+        return None;
+    }
+
+    let give_up_marker = (pos - max_var_data).max(0) as u64;
+    let mut pos = pos as u64;
+
+    loop  {
+        if pos < give_up_marker {
+            return None;
+        }
+        pos -= 1;
+        reader.seek(io::SeekFrom::Start(pos)).unwrap();
+        
+        if reader.read_u32::<LittleEndian>().unwrap() == signature as u32 {
+            return Some(pos);
+        }
+    }
 }
 
 impl CentralDirectoryEnd {
@@ -107,6 +136,29 @@ impl Zip64CentralDirectoryEndLocator {
                 "Invalid zip64 locator digital signature header",
             ));
         }
+        let disk_with_central_directory = reader.read_u32::<LittleEndian>()?;
+        let end_of_central_directory_offset = reader.read_u64::<LittleEndian>()?;
+        let number_of_disks = reader.read_u32::<LittleEndian>()?;
+
+        Ok(Zip64CentralDirectoryEndLocator {
+            disk_with_central_directory,
+            end_of_central_directory_offset,
+            number_of_disks,
+        })
+    }
+
+    pub fn find_and_parse<T: Read + io::Seek>(
+        reader: &mut T,
+        cde_start_pos: u64,
+    ) -> ZipResult<Zip64CentralDirectoryEndLocator> {
+        find_sig_loc(
+            reader,
+            ZIP64_CENTRAL_DIRECTORY_END_LOCATOR_SIGNATURE,
+            cde_start_pos as i64,
+            0,
+            0x0100,
+        ).ok_or(ZipError::InvalidArchive("Invalid zip64 locator digital signature header"))?;
+
         let disk_with_central_directory = reader.read_u32::<LittleEndian>()?;
         let end_of_central_directory_offset = reader.read_u64::<LittleEndian>()?;
         let number_of_disks = reader.read_u32::<LittleEndian>()?;

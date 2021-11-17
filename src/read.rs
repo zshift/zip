@@ -143,7 +143,9 @@ fn find_content<'a>(
     // Parse local header
     reader.seek(io::SeekFrom::Start(data.header_start))?;
     let signature = reader.read_u32::<LittleEndian>()?;
-    if signature != spec::LOCAL_FILE_HEADER_SIGNATURE {
+    if signature != spec::LOCAL_FILE_HEADER_SIGNATURE
+        && signature != spec::LOCAL_ENC_FILE_HEADER_SIGNATURE
+    {
         return Err(ZipError::InvalidArchive("Invalid local file header"));
     }
 
@@ -226,13 +228,8 @@ impl<R: Read + io::Seek> ZipArchive<R> {
         // have its signature 20 bytes in front of the standard footer. The
         // standard footer, in turn, is 22+N bytes large, where N is the
         // comment length. Therefore:
-        let zip64locator = if reader
-            .seek(io::SeekFrom::End(
-                -(20 + 22 + footer.zip_file_comment.len() as i64),
-            ))
-            .is_ok()
-        {
-            match spec::Zip64CentralDirectoryEndLocator::parse(reader) {
+        let zip64locator =
+            match spec::Zip64CentralDirectoryEndLocator::find_and_parse(reader, cde_start_pos) {
                 Ok(loc) => Some(loc),
                 Err(ZipError::InvalidArchive(_)) => {
                     // No ZIP64 header; that's actually fine. We're done here.
@@ -242,12 +239,7 @@ impl<R: Read + io::Seek> ZipArchive<R> {
                     // Yikes, a real problem
                     return Err(e);
                 }
-            }
-        } else {
-            // Empty Zip files will have nothing else so this error might be fine. If
-            // not, we'll find out soon.
-            None
-        };
+            };
 
         match zip64locator {
             None => {
@@ -269,11 +261,11 @@ impl<R: Read + io::Seek> ZipArchive<R> {
             Some(locator64) => {
                 // If we got here, this is indeed a ZIP64 file.
 
-                if footer.disk_number as u32 != locator64.disk_with_central_directory {
-                    return unsupported_zip_error(
-                        "Support for multi-disk files is not implemented",
-                    );
-                }
+                // if footer.disk_number as u32 != locator64.disk_with_central_directory {
+                //     return unsupported_zip_error(
+                //         "Support for multi-disk files is not implemented",
+                //     );
+                // }
 
                 // We need to reassess `archive_offset`. We know where the ZIP64
                 // central-directory-end structure *should* be, but unfortunately we
