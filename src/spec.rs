@@ -129,24 +129,6 @@ pub struct Zip64CentralDirectoryEndLocator {
 }
 
 impl Zip64CentralDirectoryEndLocator {
-    pub fn parse<T: Read>(reader: &mut T) -> ZipResult<Zip64CentralDirectoryEndLocator> {
-        let magic = reader.read_u32::<LittleEndian>()?;
-        if magic != ZIP64_CENTRAL_DIRECTORY_END_LOCATOR_SIGNATURE {
-            return Err(ZipError::InvalidArchive(
-                "Invalid zip64 locator digital signature header",
-            ));
-        }
-        let disk_with_central_directory = reader.read_u32::<LittleEndian>()?;
-        let end_of_central_directory_offset = reader.read_u64::<LittleEndian>()?;
-        let number_of_disks = reader.read_u32::<LittleEndian>()?;
-
-        Ok(Zip64CentralDirectoryEndLocator {
-            disk_with_central_directory,
-            end_of_central_directory_offset,
-            number_of_disks,
-        })
-    }
-
     pub fn find_and_parse<T: Read + io::Seek>(
         reader: &mut T,
         cde_start_pos: u64,

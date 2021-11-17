@@ -22,6 +22,9 @@ use flate2::write::DeflateEncoder;
 #[cfg(feature = "bzip2")]
 use bzip2::write::BzEncoder;
 
+#[cfg(feature = "zstd")]
+use zstd::Encoder as ZstdEncoder;
+
 enum GenericZipWriter<'a, W: Write + io::Seek> {
     Closed,
     Storer(W),
@@ -33,7 +36,7 @@ enum GenericZipWriter<'a, W: Write + io::Seek> {
     Deflater(DeflateEncoder<W>),
     #[cfg(feature = "bzip2")]
     Bzip2(BzEncoder<W>),
-    Zstd(zstd::Encoder<'a, W>)
+    Zstd(ZstdEncoder<'a, W>)
 }
 
 /// ZIP archive generator
@@ -833,7 +836,7 @@ impl<'a, W: Write + io::Seek> GenericZipWriter<'a, W> {
                     GenericZipWriter::Bzip2(BzEncoder::new(bare, bzip2::Compression::default()))
                 }
                 CompressionMethod::Zstd => {
-                    GenericZipWriter::Zstd(zstd::Encoder::new(bare, zstd::DEFAULT_COMPRESSION_LEVEL)?)
+                    GenericZipWriter::Zstd(ZstdEncoder::new(bare, zstd::DEFAULT_COMPRESSION_LEVEL)?)
                 },
                 CompressionMethod::Unsupported(..) => {
                     return Err(ZipError::UnsupportedArchive("Unsupported compression"))
