@@ -14,11 +14,11 @@ pub fn unpack_data_p4k_test() {
     let out_path = Path::new("D:/tmp");
 
     let mut zip = zip::ZipArchive::new(archive).unwrap();
-    for i in 0..zip.len() {
+    for i in 0..10 {
         let zipped_file = zip.by_index_decrypt(i, &KEY).unwrap().unwrap();
         let path = out_path.join(Path::new(zipped_file.name()));
         if !path.parent().unwrap().exists() {
-            std::fs::create_dir(path.parent().unwrap()).unwrap();
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         }
         let out_file = std::fs::File::create(path).unwrap();
         let mut reader = BufReader::new(zipped_file);

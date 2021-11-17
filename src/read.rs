@@ -94,7 +94,7 @@ enum ZipFileReader<'a> {
     #[cfg(feature = "bzip2")]
     Bzip2(Crc32Reader<BzDecoder<CryptoReader<'a>>>),
     #[cfg(feature = "zstd")]
-    Zstd(Crc32Reader<ZstdDecoder<'a, BufReader<CryptoReader<'a>>>>),
+    Zstd(ZstdDecoder<'a, BufReader<CryptoReader<'a>>>),
 }
 
 impl<'a> Read for ZipFileReader<'a> {
@@ -133,7 +133,7 @@ impl<'a> ZipFileReader<'a> {
             #[cfg(feature = "bzip2")]
             ZipFileReader::Bzip2(r) => r.into_inner().into_inner().into_inner(),
             #[cfg(feature = "zstd")]
-            ZipFileReader::Zstd(r) => r.into_inner().finish().into_inner().into_inner(),
+            ZipFileReader::Zstd(r) => r.finish().into_inner().into_inner(),
         }
     }
 }
@@ -224,7 +224,7 @@ fn make_reader<'a>(
         #[cfg(feature = "zstd")]
         CompressionMethod::Zstd => {
             let zstd_reader = ZstdDecoder::new(reader).unwrap();
-            ZipFileReader::Zstd(Crc32Reader::new(zstd_reader, crc32))
+            ZipFileReader::Zstd(zstd_reader)
         }
         _ => panic!("Compression method not supported"),
     }
